@@ -125,6 +125,7 @@ class ReaderActivity : FragmentActivity() {
                     supportFragmentManager.fragmentFactory =
                         openedBook.navigatorFactory.createFragmentFactory(
                             initialLocator = initialLocator,
+                            initialPreferences = chrome.initialPreferences,
                             listener = object : EpubNavigatorFragment.Listener {
                                 override fun onExternalLinkActivated(url: AbsoluteUrl) {
                                     startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))

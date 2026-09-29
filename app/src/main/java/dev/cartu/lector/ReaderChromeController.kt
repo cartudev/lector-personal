@@ -103,6 +103,8 @@ internal class ReaderChromeController(
                     ?.let { runCatching { Theme.valueOf(it) }.getOrNull() },
             )
         )
+    val initialPreferences: EpubPreferences
+        get() = preferencesEditor.preferences
     private var pageState by mutableStateOf(
         ReaderPageState(
             title = publication.metadata.title ?: book.nameWithoutExtension,
