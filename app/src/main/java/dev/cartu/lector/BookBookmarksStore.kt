@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
+import kotlin.math.abs
 import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
@@ -35,12 +36,11 @@ internal class BookBookmarksStore(context: Context, book: File) {
         }
     }.getOrDefault(emptyList())
 
-    fun contains(locator: Locator): Boolean = bookmarks().any { it.locator.toJSON().toString() == locator.toJSON().toString() }
+    fun contains(locator: Locator): Boolean = bookmarks().any { samePosition(it.locator, locator) }
 
     fun toggle(locator: Locator): Boolean {
         val current = bookmarks()
-        val serializedLocator = locator.toJSON().toString()
-        val existing = current.firstOrNull { it.locator.toJSON().toString() == serializedLocator }
+        val existing = current.firstOrNull { samePosition(it.locator, locator) }
         val updated = if (existing == null) {
             current + BookBookmark(
                 id = UUID.randomUUID().toString(),
@@ -51,10 +51,23 @@ internal class BookBookmarksStore(context: Context, book: File) {
         } else {
             current - existing
         }
+        save(updated)
+        return existing == null
+    }
+
+    fun delete(id: String): Boolean {
+        val current = bookmarks()
+        val updated = current.filterNot { it.id == id }
+        if (current.size == updated.size) return false
+        save(updated)
+        return true
+    }
+
+    private fun save(bookmarks: List<BookBookmark>) {
         preferences.edit().putString(
             bookmarksKey,
             JSONArray().apply {
-                updated.forEach { bookmark ->
+                bookmarks.forEach { bookmark ->
                     put(
                         JSONObject()
                             .put("id", bookmark.id)
@@ -64,7 +77,23 @@ internal class BookBookmarksStore(context: Context, book: File) {
                 }
             }.toString()
         ).apply()
-        return existing == null
+    }
+
+    private fun samePosition(first: Locator, second: Locator): Boolean {
+        if (first.href != second.href) return false
+        if (first.locations.position != null && second.locations.position != null) {
+            return first.locations.position == second.locations.position
+        }
+        val firstProgression = first.locations.progression
+        val secondProgression = second.locations.progression
+        if (firstProgression != null && secondProgression != null) {
+            return abs(firstProgression - secondProgression) < 0.0001 &&
+                first.locations.fragments == second.locations.fragments
+        }
+        return first.locations.fragments == second.locations.fragments &&
+            first.text.highlight == second.text.highlight &&
+            first.text.before == second.text.before &&
+            first.text.after == second.text.after
     }
 
     companion object {

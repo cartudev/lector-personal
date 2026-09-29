@@ -63,7 +63,7 @@ Use a 4dp base. Library padding is 24dp, inline gaps are 8-16dp, and interactive
 - **Accessibility**: page and progress are textual, not color-only; controls have at least 48dp targets.
 
 ### Contents & Bookmarks Panel
-- **Structure**: nested TOC entries and saved Locator bookmarks in a single scrollable dialog.
+- **Structure**: nested TOC entries and saved Locator bookmarks in a single scrollable dialog; bookmark rows expose a remove action.
 - **States**: explicit empty states; selecting an item navigates to its Locator.
 
 ### Notes & Dictionary

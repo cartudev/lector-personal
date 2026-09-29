@@ -66,6 +66,7 @@ internal data class ReaderDestination(
     val depth: Int = 0,
     val locator: Locator? = null,
     val link: Link? = null,
+    val isBookmark: Boolean = false,
 )
 
 internal data class ReaderChromeActions(
@@ -77,6 +78,7 @@ internal data class ReaderChromeActions(
     val onFontLarger: () -> Unit,
     val onTheme: () -> Unit,
     val onNavigate: (ReaderDestination) -> Unit,
+    val onDeleteBookmark: (ReaderDestination) -> Unit,
 )
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -124,6 +126,7 @@ internal class ReaderChromeController(
         onFontLarger = { adjustFont(increase = true) },
         onTheme = ::cycleTheme,
         onNavigate = ::navigate,
+        onDeleteBookmark = ::deleteBookmark,
     )
 
     val paginationListener = object : EpubNavigatorFragment.PaginationListener {
@@ -151,6 +154,7 @@ internal class ReaderChromeController(
                                 id = bookmark.id,
                                 label = bookmark.label,
                                 locator = bookmark.locator,
+                                isBookmark = true,
                             )
                         },
                         contentsOpen = contentsOpen,
@@ -189,6 +193,12 @@ internal class ReaderChromeController(
             destination.link != null -> navigator.go(destination.link)
         }
         contentsOpen = false
+    }
+
+    private fun deleteBookmark(destination: ReaderDestination) {
+        if (!bookmarksStore.delete(destination.id)) return
+        pageState = pageState.copy(bookmarked = bookmarksStore.contains(navigator.currentLocator.value))
+        showToast("Marcador eliminado.")
     }
 
     private fun adjustFont(increase: Boolean) {
@@ -292,7 +302,7 @@ private fun ReaderTopBar(
                         if (tableOfContents.isNotEmpty()) {
                             item { Text("Contenido", style = MaterialTheme.typography.labelLarge) }
                             items(tableOfContents, key = { it.id }) { destination ->
-                                DestinationRow(destination, actions.onNavigate)
+                                DestinationRow(destination, actions)
                             }
                         }
                         if (bookmarks.isNotEmpty()) {
@@ -304,7 +314,7 @@ private fun ReaderTopBar(
                                 )
                             }
                             items(bookmarks, key = { it.id }) { destination ->
-                                DestinationRow(destination, actions.onNavigate)
+                                DestinationRow(destination, actions)
                             }
                         }
                     }
@@ -318,12 +328,17 @@ private fun ReaderTopBar(
 }
 
 @Composable
-private fun DestinationRow(destination: ReaderDestination, onNavigate: (ReaderDestination) -> Unit) {
-    TextButton(
-        onClick = { onNavigate(destination) },
-        modifier = Modifier.fillMaxWidth().padding(start = (destination.depth * 12).dp),
-    ) {
-        Text(destination.label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start, maxLines = 2)
+private fun DestinationRow(destination: ReaderDestination, actions: ReaderChromeActions) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+            onClick = { actions.onNavigate(destination) },
+            modifier = Modifier.weight(1f).padding(start = (destination.depth * 12).dp),
+        ) {
+            Text(destination.label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start, maxLines = 2)
+        }
+        if (destination.isBookmark) {
+            TextButton(onClick = { actions.onDeleteBookmark(destination) }) { Text("Quitar") }
+        }
     }
 }
 

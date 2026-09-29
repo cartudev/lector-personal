@@ -6,7 +6,7 @@ Aplicación Android nativa para leer EPUB, guardar palabras y frases en un dicci
 
 - Biblioteca local ordenada por última lectura e importación desde el selector de archivos de Android.
 - Controles de lectura con páginas del recurso EPUB actual, progreso total, índice navegable, anterior/siguiente y barra adaptada a las áreas del sistema.
-- Marcadores por libro y restauración de la última posición exacta.
+- Marcadores por libro, gestión desde el índice y restauración de la última posición exacta.
 - Tamaño de texto y tema claro, sepia u oscuro, guardados por libro.
 - Diccionario personal con traducciones opcionales y colores; los resaltados parciales se calculan por ventana y se cachean por EPUB.
 - Notas libres ancladas a una selección y navegación de regreso al fragmento.
