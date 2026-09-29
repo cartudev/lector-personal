@@ -1,0 +1,42 @@
+# Lector personal EPUB
+
+Aplicación Android nativa para leer EPUB, guardar palabras y frases en un diccionario personal, y anotar fragmentos mediante Locators estables de Readium.
+
+## Funciones
+
+- Biblioteca local ordenada por última lectura e importación desde el selector de archivos de Android.
+- Controles de lectura con páginas del recurso EPUB actual, progreso total, índice navegable, anterior/siguiente y barra adaptada a las áreas del sistema.
+- Marcadores por libro y restauración de la última posición exacta.
+- Tamaño de texto y tema claro, sepia u oscuro, guardados por libro.
+- Diccionario personal con traducciones opcionales y colores; los resaltados parciales se calculan por ventana y se cachean por EPUB.
+- Notas libres ancladas a una selección y navegación de regreso al fragmento.
+- Acción opcional `ACTION_PROCESS_TEXT` para enviar texto seleccionado a Offline Translator (`dev.davidv.translator`).
+
+Los libros importados y los datos personales se guardan localmente en la aplicación. No se sincronizan ni se envían a un servidor. La traducción requiere instalar por separado Offline Translator.
+
+## Requisitos
+
+- Android Studio con JDK 17.
+- Android SDK Platform 36 para compilar.
+- Android 8.0 (API 26) o posterior para ejecutar.
+
+## Compilar y probar
+
+Desde esta carpeta, ejecuta:
+
+```bash
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+El APK debug se genera en `app/build/outputs/apk/debug/app-debug.apk`. Abre esta carpeta como proyecto Gradle en Android Studio, instala la app, importa un archivo EPUB y ábrelo desde la biblioteca.
+
+## Notas de validación
+
+- La apertura EPUB, el diccionario y las notas se probaron con publicaciones reales en el emulador.
+- La compilación y los tests unitarios pasan con Gradle 9.3.0.
+- Offline Translator 0.8.5 resolvió la acción en un AVD x86_64, pero su proceso falló por una incompatibilidad de la biblioteca nativa JNA del APK arm64. La acción debe verificarse en un teléfono ARM64.
+- La pantalla de controles añadida requiere una verificación visual en un emulador o dispositivo Android; no había `adb` disponible en el entorno de desarrollo durante esta compilación.
+
+## Licencia
+
+MIT. Consulta `LICENSE`.
