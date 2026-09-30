@@ -39,11 +39,18 @@ class ReaderActivity : FragmentActivity() {
     private lateinit var currentBookFile: File
     private lateinit var bookNotes: BookNotesStore
     private lateinit var notesController: BookNotesController
+    private val decorationQueue = NavigatorDecorationQueue()
     private val dictionary by lazy { PersonalDictionary(applicationContext) }
     private val matchCache by lazy { BookMatchCache(File(filesDir, "dictionary-match-cache")) }
     private val publicationOpener by lazy { ReadiumPublicationOpener(this) }
     private val highlights by lazy {
-        DictionaryHighlightCoordinator(lifecycleScope, dictionary, matchCache, ::showToast)
+        DictionaryHighlightCoordinator(
+            scope = lifecycleScope,
+            dictionary = dictionary,
+            cache = matchCache,
+            decorationQueue = decorationQueue,
+            onMessage = ::showToast,
+        )
     }
 
     private val dictionaryDecorationListener = object : DecorableNavigator.Listener {
@@ -112,7 +119,7 @@ class ReaderActivity : FragmentActivity() {
                     currentPublication = openedBook.publication
                     currentBookFile = file
                     bookNotes = BookNotesStore(applicationContext, file)
-                    notesController = BookNotesController(bookNotes, ::showBookNote)
+                    notesController = BookNotesController(bookNotes, decorationQueue, ::showBookNote)
                     val chrome = ReaderChromeController(
                         activity = this@ReaderActivity,
                         root = root,
@@ -121,6 +128,7 @@ class ReaderActivity : FragmentActivity() {
                         navigatorFactory = openedBook.navigatorFactory,
                         navigatorProvider = ::navigator,
                         showToast = ::showToast,
+                        onPaginationUpdate = highlights::onPageChanged,
                     )
                     supportFragmentManager.fragmentFactory =
                         openedBook.navigatorFactory.createFragmentFactory(

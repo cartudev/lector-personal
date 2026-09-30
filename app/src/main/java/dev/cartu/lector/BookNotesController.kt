@@ -9,6 +9,7 @@ import org.readium.r2.shared.publication.Locator
 @OptIn(ExperimentalReadiumApi::class)
 internal class BookNotesController(
     private val store: BookNotesStore,
+    private val decorationQueue: NavigatorDecorationQueue,
     private val onNoteActivated: (BookNote) -> Unit,
 ) : DecorableNavigator.Listener {
     override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
@@ -37,7 +38,9 @@ internal class BookNotesController(
                 )
             }
             .toList()
-        navigator.applyDecorations(decorations, DECORATION_GROUP)
+        decorationQueue.run {
+            navigator.applyDecorations(decorations, DECORATION_GROUP)
+        }
     }
 
     companion object {

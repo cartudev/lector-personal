@@ -43,7 +43,6 @@ import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.epub.EpubPreferencesEditor
 import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
-import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -57,7 +56,6 @@ internal data class ReaderPageState(
     val fontPercent: Int = 100,
     val theme: String = "Claro",
     val bookmarked: Boolean = false,
-    val canChangeText: Boolean = true,
 )
 
 internal data class ReaderDestination(
@@ -90,6 +88,7 @@ internal class ReaderChromeController(
     private val navigatorFactory: EpubNavigatorFactory,
     private val navigatorProvider: () -> EpubNavigatorFragment,
     private val showToast: (String) -> Unit,
+    private val onPaginationUpdate: (Int, Int, Locator) -> Unit,
 ) {
     private val navigator: EpubNavigatorFragment
         get() = navigatorProvider()
@@ -112,7 +111,6 @@ internal class ReaderChromeController(
             title = publication.metadata.title ?: book.nameWithoutExtension,
             fontPercent = (preferencesEditor.fontSize.effectiveValue * 100).roundToInt(),
             theme = preferencesEditor.theme.effectiveValue.label(),
-            canChangeText = preferencesEditor.fontSize.isEffective || preferencesEditor.theme.isEffective,
         )
     )
     private var contentsOpen by mutableStateOf(false)
@@ -139,11 +137,22 @@ internal class ReaderChromeController(
                 bookmarked = bookmarksStore.contains(locator),
             )
             readingHistory.saveLocator(book, locator)
+            val readingPageIndex = if (totalPages > 0) {
+                ((locator.locations.progression ?: pageIndex.toDouble() / totalPages) * totalPages)
+                    .roundToInt()
+                    .coerceIn(0, totalPages - 1)
+            } else {
+                pageIndex
+            }
+            onPaginationUpdate(readingPageIndex, totalPages, locator)
         }
     }
 
     fun attach() {
         val topBar = ComposeView(activity).apply {
+            isClickable = true
+            isFocusable = true
+            elevation = 12f * resources.displayMetrics.density
             setContent {
                 MaterialTheme {
                     ReaderTopBar(
@@ -165,6 +174,9 @@ internal class ReaderChromeController(
             }
         }
         val bottomBar = ComposeView(activity).apply {
+            isClickable = true
+            isFocusable = true
+            elevation = 12f * resources.displayMetrics.density
             setContent {
                 MaterialTheme {
                     ReaderBottomBar(pageState, actions)
@@ -179,6 +191,9 @@ internal class ReaderChromeController(
             bottomBar,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM),
         )
+        root.bringChildToFront(topBar)
+        root.bringChildToFront(bottomBar)
+        root.invalidate()
     }
 
     private fun toggleBookmark() {
@@ -381,10 +396,19 @@ private fun ReaderBottomBar(state: ReaderPageState, actions: ReaderChromeActions
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                TextButton(onClick = actions.onFontSmaller, enabled = state.canChangeText) { Text("A−") }
+                TextButton(
+                    onClick = actions.onFontSmaller,
+                    modifier = Modifier.semantics { contentDescription = "Reducir tamaño de texto" },
+                ) { Text("A−") }
                 Text("${state.fontPercent}%", style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = actions.onFontLarger, enabled = state.canChangeText) { Text("A+") }
-                TextButton(onClick = actions.onTheme, enabled = state.canChangeText) { Text("Tema: ${state.theme}") }
+                TextButton(
+                    onClick = actions.onFontLarger,
+                    modifier = Modifier.semantics { contentDescription = "Aumentar tamaño de texto" },
+                ) { Text("A+") }
+                TextButton(
+                    onClick = actions.onTheme,
+                    modifier = Modifier.semantics { contentDescription = "Cambiar tema de lectura" },
+                ) { Text("Tema: ${state.theme}") }
             }
         }
     }
