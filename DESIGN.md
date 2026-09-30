@@ -16,12 +16,15 @@ A quiet, reading-first Android app. The EPUB page owns the viewport; native Mate
 | Surface | `MaterialTheme.colorScheme.surface` | Reader bars, dialogs, menus |
 | Surface variant | `MaterialTheme.colorScheme.surfaceVariant` | Secondary controls |
 | Text | `MaterialTheme.colorScheme.onSurface` | App chrome text |
+| Reading theme | `Readium Theme` | EPUB page and Compose chrome share the selected light, sepia, or dark surface/content colors |
 | Dictionary marks | `DICTIONARY_COLORS` | Per-entry transparent overlapping highlights |
 | Note mark | `BookNotesController` accent | Book-scoped note underline |
 
 ### Rules
 - Use Material 3 semantic color roles for reader chrome.
-- EPUB content retains publisher colors and styles unless changed through reading preferences.
+- Resolve chrome `background`, `surface`, `onBackground`, and `onSurface` from the active Readium reading theme; do not leave bars on the default light scheme when the EPUB is dark or sepia.
+- Status/navigation system bars and icon contrast follow the same active reading theme.
+- Readium applies the selected Light/Sepia/Dark palette over EPUB author colors (`publisherStyles = false`); the OED layout, semantic emphasis, and dictionary marks remain intact in AVD validation.
 - Dictionary marks remain translucent so overlapping terms blend visibly.
 
 ## 3. Typography
@@ -45,21 +48,23 @@ A quiet, reading-first Android app. The EPUB page owns the viewport; native Mate
 Use a 4dp base. Library padding is 24dp, inline gaps are 8-16dp, and interactive touch targets are at least 48dp.
 
 ### Reader Shell
-- Readium owns the full reading viewport.
-- Top and bottom control bars are compact overlays respecting system-bar insets.
+- A vertical native shell contains the top bar, a weighted Readium viewport, and the bottom bar as separate siblings.
+- Bars reserve their measured height and system-bar insets; they do not overlay or hide EPUB text.
 - TOC/bookmark/settings panels own their own scroll; reading content is not wrapped in another scroll container.
-- Controls stay outside the main page text region and never resize the EPUB viewport unnecessarily.
+- The navigator fills the remaining space between controls, preserving the largest unobstructed reading area.
 
 ## 5. Components
 
 ### Reader Top Bar
 - **Structure**: return to library, truncated book title, contents, current-book bookmark toggle.
 - **States**: TOC open/closed; bookmarked/unbookmarked; no-TOC disabled state.
+- **Surface**: material colors follow the active Readium theme.
 - **Accessibility**: text labels and TalkBack descriptions.
 
 ### Reader Bottom Bar
 - **Structure**: progress indicator, current resource page counter, whole-book percentage, previous/next, text size, theme.
 - **States**: previous/next disable at boundaries; theme label reflects the active preference.
+- **Surface**: material colors follow the active Readium theme; dark and sepia must remain legible.
 - **Accessibility**: page and progress are textual, not color-only; controls have at least 48dp targets.
 
 ### Contents & Bookmarks Panel
@@ -69,6 +74,7 @@ Use a 4dp base. Library padding is 24dp, inline gaps are 8-16dp, and interactive
 ### Notes & Dictionary
 - Notes are scoped to an EPUB and anchored to Readium Locators.
 - Dictionary phrases/terms use per-entry colors and partial-match decorations limited to the current resource's page and three pages on either side.
+- Seven rotating page slots preserve overlapping highlights; a one-page advance updates only the slot entering/leaving the window.
 - Dictionary and note decoration updates share a serialized queue to avoid overlapping Readium WebView diffs during page turns.
 
 ## 6. Motion & Interaction

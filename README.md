@@ -5,7 +5,7 @@ Aplicación Android nativa para leer EPUB, guardar palabras y frases en un dicci
 ## Funciones
 
 - Biblioteca local ordenada por última lectura e importación desde el selector de archivos de Android.
-- Controles de lectura con páginas del recurso EPUB actual, progreso total, índice navegable, anterior/siguiente y barra adaptada a las áreas del sistema.
+- Controles en barras separadas del viewport (sin tapar texto), páginas del recurso EPUB actual, progreso total, índice navegable, anterior/siguiente y superficies/sistema que siguen el tema Readium activo.
 - Marcadores por libro, gestión desde el índice y restauración de la última posición exacta.
 - Tamaño de texto y tema claro, sepia u oscuro, guardados por libro.
 - Diccionario personal con traducciones opcionales y colores; los resaltados parciales se limitan a la página actual y tres páginas a cada lado dentro del recurso EPUB activo, y se cachean por EPUB.
