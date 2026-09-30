@@ -11,11 +11,13 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.commitNow
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.WindowCompat
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,6 +36,7 @@ import org.readium.r2.shared.util.toUri
 @OptIn(ExperimentalReadiumApi::class)
 class ReaderActivity : FragmentActivity() {
     private val containerId = R.id.reader_container
+    private lateinit var shell: LinearLayout
     private lateinit var root: FrameLayout
     private lateinit var currentPublication: Publication
     private lateinit var currentBookFile: File
@@ -95,9 +98,16 @@ class ReaderActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        shell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root = FrameLayout(this)
         root.id = containerId
-        setContentView(root)
+        shell.addView(root, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f,
+        ))
+        setContentView(shell)
 
         val path = intent.getStringExtra(EXTRA_BOOK_PATH)
         if (path == null) {
@@ -122,7 +132,7 @@ class ReaderActivity : FragmentActivity() {
                     notesController = BookNotesController(bookNotes, decorationQueue, ::showBookNote)
                     val chrome = ReaderChromeController(
                         activity = this@ReaderActivity,
-                        root = root,
+                        shell = shell,
                         book = file,
                         publication = currentPublication,
                         navigatorFactory = openedBook.navigatorFactory,
@@ -151,14 +161,12 @@ class ReaderActivity : FragmentActivity() {
                     }
                     val navigator =
                         supportFragmentManager.findFragmentByTag(NAVIGATOR_TAG) as EpubNavigatorFragment
-                    (navigator as? DecorableNavigator)?.addDecorationListener(
-                        DictionaryHighlighter.DECORATION_GROUP,
-                        dictionaryDecorationListener
-                    )
-                    (navigator as? DecorableNavigator)?.addDecorationListener(
-                        BookNotesController.DECORATION_GROUP,
-                        notesController
-                    )
+                    (navigator as? DecorableNavigator)?.let { decorable ->
+                        for (slot in 0 until DictionaryHighlighter.DECORATION_SLOT_COUNT) {
+                            decorable.addDecorationListener(DictionaryHighlighter.decorationGroupForSlot(slot), dictionaryDecorationListener)
+                        }
+                        decorable.addDecorationListener(BookNotesController.DECORATION_GROUP, notesController)
+                    }
                     chrome.attach()
                     highlights.start(currentPublication, currentBookFile, navigator) { locator ->
                         notesController.applyWindow(navigator, locator)

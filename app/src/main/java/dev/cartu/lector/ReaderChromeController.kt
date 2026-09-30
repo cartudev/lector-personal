@@ -1,9 +1,9 @@
 package dev.cartu.lector
 
-import android.view.Gravity
-import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.content.Context
+import android.os.Build
+import android.view.ViewGroup
+import android.widget.LinearLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.core.view.WindowInsetsControllerCompat
 import org.readium.r2.navigator.OverflowableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -54,7 +55,7 @@ internal data class ReaderPageState(
     val pageCount: Int = 0,
     val progress: Float = 0f,
     val fontPercent: Int = 100,
-    val theme: String = "Claro",
+    val theme: Theme = Theme.LIGHT,
     val bookmarked: Boolean = false,
 )
 
@@ -82,7 +83,7 @@ internal data class ReaderChromeActions(
 @OptIn(ExperimentalReadiumApi::class)
 internal class ReaderChromeController(
     private val activity: FragmentActivity,
-    private val root: FrameLayout,
+    private val shell: LinearLayout,
     private val book: java.io.File,
     private val publication: Publication,
     private val navigatorFactory: EpubNavigatorFactory,
@@ -102,6 +103,7 @@ internal class ReaderChromeController(
                 fontSize = settings.getFloat("$settingsPrefix:font-size", 1f).toDouble(),
                 theme = settings.getString("$settingsPrefix:theme", null)
                     ?.let { runCatching { Theme.valueOf(it) }.getOrNull() },
+                publisherStyles = false,
             )
         )
     val initialPreferences: EpubPreferences
@@ -110,7 +112,7 @@ internal class ReaderChromeController(
         ReaderPageState(
             title = publication.metadata.title ?: book.nameWithoutExtension,
             fontPercent = (preferencesEditor.fontSize.effectiveValue * 100).roundToInt(),
-            theme = preferencesEditor.theme.effectiveValue.label(),
+            theme = preferencesEditor.theme.effectiveValue,
         )
     )
     private var contentsOpen by mutableStateOf(false)
@@ -149,12 +151,12 @@ internal class ReaderChromeController(
     }
 
     fun attach() {
+        applySystemBars(pageState.theme)
         val topBar = ComposeView(activity).apply {
             isClickable = true
             isFocusable = true
-            elevation = 12f * resources.displayMetrics.density
             setContent {
-                MaterialTheme {
+                ReaderChromeMaterialTheme(pageState.theme) {
                     ReaderTopBar(
                         state = pageState,
                         tableOfContents = tableOfContents,
@@ -176,24 +178,21 @@ internal class ReaderChromeController(
         val bottomBar = ComposeView(activity).apply {
             isClickable = true
             isFocusable = true
-            elevation = 12f * resources.displayMetrics.density
             setContent {
-                MaterialTheme {
+                ReaderChromeMaterialTheme(pageState.theme) {
                     ReaderBottomBar(pageState, actions)
                 }
             }
         }
-        root.addView(
+        shell.addView(
             topBar,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP),
+            0,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
-        root.addView(
+        shell.addView(
             bottomBar,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
-        root.bringChildToFront(topBar)
-        root.bringChildToFront(bottomBar)
-        root.invalidate()
     }
 
     private fun toggleBookmark() {
@@ -225,8 +224,8 @@ internal class ReaderChromeController(
         settings.edit()
             .putFloat("$settingsPrefix:font-size", preferencesEditor.fontSize.effectiveValue.toFloat())
             .apply()
-        navigator.submitPreferences(preferencesEditor.preferences)
         pageState = pageState.copy(fontPercent = (preferencesEditor.fontSize.effectiveValue * 100).roundToInt())
+        navigator.submitPreferences(preferencesEditor.preferences)
     }
 
     private fun cycleTheme() {
@@ -239,8 +238,24 @@ internal class ReaderChromeController(
         val next = themes[(themes.indexOf(current) + 1) % themes.size]
         preferencesEditor.theme.set(next)
         settings.edit().putString("$settingsPrefix:theme", next.name).apply()
+        pageState = pageState.copy(theme = next)
+        applySystemBars(next)
         navigator.submitPreferences(preferencesEditor.preferences)
-        pageState = pageState.copy(theme = next.label())
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applySystemBars(theme: Theme) {
+        val window = activity.window
+        window.statusBarColor = theme.backgroundColor
+        window.navigationBarColor = theme.backgroundColor
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = theme != Theme.DARK
+            isAppearanceLightNavigationBars = theme != Theme.DARK
+        }
     }
 
     private fun flattenLinks(links: List<Link>): List<ReaderDestination> = buildList {
@@ -259,8 +274,6 @@ internal class ReaderChromeController(
         }
         addLinks(links, 0)
     }
-
-    private fun Theme.label(): String = name.lowercase().replaceFirstChar(Char::uppercase)
 
     private companion object {
         const val SETTINGS_NAME = "reader_preferences"
@@ -408,7 +421,7 @@ private fun ReaderBottomBar(state: ReaderPageState, actions: ReaderChromeActions
                 TextButton(
                     onClick = actions.onTheme,
                     modifier = Modifier.semantics { contentDescription = "Cambiar tema de lectura" },
-                ) { Text("Tema: ${state.theme}") }
+                ) { Text("Tema: ${state.theme.label()}") }
             }
         }
     }
