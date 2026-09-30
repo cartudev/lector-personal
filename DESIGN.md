@@ -68,7 +68,8 @@ Use a 4dp base. Library padding is 24dp, inline gaps are 8-16dp, and interactive
 
 ### Notes & Dictionary
 - Notes are scoped to an EPUB and anchored to Readium Locators.
-- Dictionary phrases/terms use per-entry colors and windowed partial-match decorations.
+- Dictionary phrases/terms use per-entry colors and partial-match decorations limited to the current resource's page and three pages on either side.
+- Dictionary and note decoration updates share a serialized queue to avoid overlapping Readium WebView diffs during page turns.
 
 ## 6. Motion & Interaction
 

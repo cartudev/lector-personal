@@ -8,7 +8,7 @@ Aplicación Android nativa para leer EPUB, guardar palabras y frases en un dicci
 - Controles de lectura con páginas del recurso EPUB actual, progreso total, índice navegable, anterior/siguiente y barra adaptada a las áreas del sistema.
 - Marcadores por libro, gestión desde el índice y restauración de la última posición exacta.
 - Tamaño de texto y tema claro, sepia u oscuro, guardados por libro.
-- Diccionario personal con traducciones opcionales y colores; los resaltados parciales se calculan por ventana y se cachean por EPUB.
+- Diccionario personal con traducciones opcionales y colores; los resaltados parciales se limitan a la página actual y tres páginas a cada lado dentro del recurso EPUB activo, y se cachean por EPUB.
 - Notas libres ancladas a una selección y navegación de regreso al fragmento.
 - Acción opcional `ACTION_PROCESS_TEXT` para enviar texto seleccionado a Offline Translator (`dev.davidv.translator`).
 
@@ -35,7 +35,7 @@ El APK debug se genera en `app/build/outputs/apk/debug/app-debug.apk`. Abre esta
 - La apertura EPUB, el diccionario y las notas se probaron con publicaciones reales en el emulador.
 - La compilación y los tests unitarios pasan con Gradle 9.3.0.
 - Offline Translator 0.8.5 resolvió la acción en un AVD x86_64, pero su proceso falló por una incompatibilidad de la biblioteca nativa JNA del APK arm64. La acción debe verificarse en un teléfono ARM64.
-- La pantalla de controles añadida requiere una verificación visual en un emulador o dispositivo Android; no había `adb` disponible en el entorno de desarrollo durante esta compilación.
+- Los controles de lectura y el redibujado al paginar se probaron en AVD Pixel_10 con un EPUB sintético; falta una pasada equivalente en teléfono físico. Offline Translator aún requiere validación ARM64.
 
 ## Licencia
 
