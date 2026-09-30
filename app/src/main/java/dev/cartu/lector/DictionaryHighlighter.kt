@@ -1,7 +1,7 @@
 package dev.cartu.lector
 
 import android.util.Log
-import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -22,6 +22,12 @@ internal class DictionaryHighlighter(
         val colorIndex: Int,
         val id: String,
         val locator: Locator,
+        val progression: Double,
+    )
+
+    data class PageMatch(
+        val id: String,
+        val resourceHref: String,
         val progression: Double,
     )
 
@@ -61,7 +67,7 @@ internal class DictionaryHighlighter(
 
             var indexed = 0
             found.locators.forEachIndexed { index, locator ->
-                val progression = locator.locations.totalProgression ?: return@forEachIndexed
+                val progression = locator.locations.progression ?: return@forEachIndexed
                 indexed++
                 matches += Match(
                     text = entry.text,
@@ -118,27 +124,68 @@ internal class DictionaryHighlighter(
         const val DECORATION_GROUP = "personal-dictionary"
         const val MAX_MATCHES_PER_ENTRY = 400
         const val WINDOW_DELTA = 0.001
-        const val MAX_WINDOW_DECORATIONS = 10
+        const val PAGES_AROUND_CURRENT = 3
+
+        fun pageWindowMatches(
+            matches: List<PageMatch>,
+            currentResourceHref: String,
+            pageIndex: Int,
+            totalPages: Int,
+        ): List<PageMatch> = matches.filter { match ->
+            isInsidePageWindow(
+                matchResourceHref = match.resourceHref,
+                matchProgression = match.progression,
+                currentResourceHref = currentResourceHref,
+                pageIndex = pageIndex,
+                totalPages = totalPages,
+            )
+        }
+
+        fun isInsidePageWindow(
+            matchResourceHref: String,
+            matchProgression: Double,
+            currentResourceHref: String,
+            pageIndex: Int,
+            totalPages: Int,
+        ): Boolean {
+            if (totalPages <= 0 || matchResourceHref != currentResourceHref) return false
+            val currentPage = pageIndex.coerceIn(0, totalPages - 1)
+            val firstPage = (currentPage - PAGES_AROUND_CURRENT).coerceAtLeast(0)
+            val lastPage = (currentPage + PAGES_AROUND_CURRENT).coerceAtMost(totalPages - 1)
+            val matchPage = (matchProgression * totalPages).roundToInt().coerceIn(0, totalPages - 1)
+            return matchPage in firstPage..lastPage
+        }
 
         fun windowDecorations(
             matches: List<Match>,
-            currentProgression: Double,
-        ): List<Decoration> = matches.asSequence()
-            .filter { abs(it.progression - currentProgression) <= WINDOW_DELTA }
-            .take(MAX_WINDOW_DECORATIONS)
-            .map { match ->
-                Decoration(
-                    id = match.id,
-                    locator = match.locator,
-                    style = Decoration.Style.Highlight(
-                        tint = colorWithAlpha(
-                            DICTIONARY_COLORS[match.colorIndex.coerceIn(DICTIONARY_COLORS.indices)],
-                            DICTIONARY_HIGHLIGHT_ALPHA
-                        )
-                    ),
-                    extras = mapOf("text" to match.text),
-                )
-            }
-            .toList()
+            currentLocator: Locator,
+            pageIndex: Int,
+            totalPages: Int,
+        ): List<Decoration> {
+            return matches.asSequence()
+                .filter { match ->
+                    isInsidePageWindow(
+                        matchResourceHref = match.locator.href.toString(),
+                        matchProgression = match.progression,
+                        currentResourceHref = currentLocator.href.toString(),
+                        pageIndex = pageIndex,
+                        totalPages = totalPages,
+                    )
+                }
+                .map { match ->
+                    Decoration(
+                        id = match.id,
+                        locator = match.locator,
+                        style = Decoration.Style.Highlight(
+                            tint = colorWithAlpha(
+                                DICTIONARY_COLORS[match.colorIndex.coerceIn(DICTIONARY_COLORS.indices)],
+                                DICTIONARY_HIGHLIGHT_ALPHA
+                            )
+                        ),
+                        extras = mapOf("text" to match.text),
+                    )
+                }
+                .toList()
+        }
     }
 }
