@@ -1,26 +1,26 @@
 package dev.cartu.lector
 
 import android.util.Log
+import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 
-@OptIn(ExperimentalReadiumApi::class, FlowPreview::class)
+@OptIn(ExperimentalReadiumApi::class)
 internal class DictionaryHighlightCoordinator(
     private val scope: CoroutineScope,
     private val dictionary: PersonalDictionary,
@@ -32,15 +32,23 @@ internal class DictionaryHighlightCoordinator(
         val pageIndex: Int,
         val totalPages: Int,
         val locator: Locator,
+        val receivedAtUptimeMs: Long,
+    )
+
+    private data class ActivePageGroup(
+        val resourceHref: String,
+        val pageIndex: Int,
+        val decorations: List<Decoration>,
     )
 
     private val matchIndex = MutableStateFlow<Map<String, List<DictionaryHighlighter.Match>>>(emptyMap())
     private val pageContext = MutableStateFlow<PageContext?>(null)
+    private val activePageGroups = mutableMapOf<Int, ActivePageGroup>()
     private var indexJob: Job? = null
     private var windowJob: Job? = null
 
     fun onPageChanged(pageIndex: Int, totalPages: Int, locator: Locator) {
-        pageContext.value = PageContext(pageIndex, totalPages, locator)
+        pageContext.value = PageContext(pageIndex, totalPages, locator, SystemClock.elapsedRealtime())
     }
 
     fun start(
@@ -55,7 +63,6 @@ internal class DictionaryHighlightCoordinator(
             windowJob = scope.launch {
                 combine(pageContext, matchIndex) { page, matches -> page?.let { it to matches } }
                     .filterNotNull()
-                    .debounce(WINDOW_DEBOUNCE_MS)
                     .conflate()
                     .collect { (page, matches) ->
                         try {
@@ -114,35 +121,53 @@ internal class DictionaryHighlightCoordinator(
         page: PageContext,
         matches: Map<String, List<DictionaryHighlighter.Match>>,
     ) {
-        val decorations = DictionaryHighlighter.windowDecorations(
+        val pageGroups = DictionaryHighlighter.windowDecorationsByPage(
             matches = matches[page.locator.href.toString()].orEmpty(),
             currentLocator = page.locator,
             pageIndex = page.pageIndex,
             totalPages = page.totalPages,
         )
+        val groupsBySlot = pageGroups.associateBy {
+            DictionaryHighlighter.decorationSlotForPage(it.pageIndex)
+        }
+        val resourceHref = page.locator.href.toString()
         val startedAt = System.currentTimeMillis()
         (navigator as? DecorableNavigator)?.let { decorable ->
-            decorationQueue.replace(
-                clear = {
-                    decorable.applyDecorations(emptyList(), DictionaryHighlighter.DECORATION_GROUP)
-                },
-                update = {
-                    if (decorations.isNotEmpty()) {
-                        decorable.applyDecorations(decorations, DictionaryHighlighter.DECORATION_GROUP)
+            for (slot in 0 until DictionaryHighlighter.DECORATION_SLOT_COUNT) {
+                val target = groupsBySlot[slot]?.let { group ->
+                    ActivePageGroup(resourceHref, group.pageIndex, group.decorations)
+                }
+                val previous = activePageGroups[slot]
+                if (previous == target) continue
+
+                val groupName = DictionaryHighlighter.decorationGroupForSlot(slot)
+                when {
+                    previous != null && target != null -> decorationQueue.replace(
+                        clear = { decorable.applyDecorations(emptyList(), groupName) },
+                        update = { decorable.applyDecorations(target.decorations, groupName) },
+                    )
+                    previous != null -> decorationQueue.run {
+                        decorable.applyDecorations(emptyList(), groupName)
                     }
-                },
-            )
+                    target != null -> decorationQueue.run {
+                        decorable.applyDecorations(target.decorations, groupName)
+                    }
+                }
+
+                if (target == null) activePageGroups.remove(slot) else activePageGroups[slot] = target
+            }
         }
+        val decorationCount = pageGroups.sumOf { it.decorations.size }
         Log.d(
             TAG,
-            "Page window: ${decorations.size} decorations in " +
-                "${System.currentTimeMillis() - startedAt}ms " +
-                "(page=${page.pageIndex + 1}/${page.totalPages}, href=${page.locator.href})"
+            "Page window: $decorationCount decorations across ${groupsBySlot.size} page groups; " +
+                "${System.currentTimeMillis() - startedAt}ms total, " +
+                "${SystemClock.elapsedRealtime() - page.receivedAtUptimeMs}ms event-to-submit " +
+                "page=${page.pageIndex + 1}/${page.totalPages}, href=${page.locator.href})"
         )
     }
 
     companion object {
         private const val TAG = "LectorPersonal"
-        private const val WINDOW_DEBOUNCE_MS = 120L
     }
 }

@@ -31,6 +31,11 @@ internal class DictionaryHighlighter(
         val progression: Double,
     )
 
+    data class PageDecorationGroup(
+        val pageIndex: Int,
+        val decorations: List<Decoration>,
+    )
+
     data class IndexResult(
         val matches: List<Match>,
         val cappedTexts: List<String>,
@@ -125,21 +130,47 @@ internal class DictionaryHighlighter(
         const val MAX_MATCHES_PER_ENTRY = 400
         const val WINDOW_DELTA = 0.001
         const val PAGES_AROUND_CURRENT = 3
+        const val DECORATION_SLOT_COUNT = PAGES_AROUND_CURRENT * 2 + 1
 
         fun pageWindowMatches(
             matches: List<PageMatch>,
             currentResourceHref: String,
             pageIndex: Int,
             totalPages: Int,
-        ): List<PageMatch> = matches.filter { match ->
-            isInsidePageWindow(
-                matchResourceHref = match.resourceHref,
-                matchProgression = match.progression,
-                currentResourceHref = currentResourceHref,
-                pageIndex = pageIndex,
-                totalPages = totalPages,
-            )
+        ): List<PageMatch> = matches.asSequence()
+            .filter { match ->
+                isInsidePageWindow(
+                    matchResourceHref = match.resourceHref,
+                    matchProgression = match.progression,
+                    currentResourceHref = currentResourceHref,
+                    pageIndex = pageIndex,
+                    totalPages = totalPages,
+                )
+            }
+            .sortedWith(compareBy<PageMatch>({ it.progression }, { it.id }))
+            .toList()
+
+        fun pageWindowMatchesByPage(
+            matches: List<PageMatch>,
+            currentResourceHref: String,
+            pageIndex: Int,
+            totalPages: Int,
+        ): Map<Int, List<PageMatch>> = pageWindowMatches(
+            matches = matches,
+            currentResourceHref = currentResourceHref,
+            pageIndex = pageIndex,
+            totalPages = totalPages,
+        ).groupBy { pageForProgression(it.progression, totalPages) }.toSortedMap()
+
+        fun decorationSlotForPage(pageIndex: Int): Int = pageIndex % DECORATION_SLOT_COUNT
+
+        fun decorationGroupForSlot(slot: Int): String {
+            require(slot in 0 until DECORATION_SLOT_COUNT)
+            return "$DECORATION_GROUP-slot-$slot"
         }
+
+        private fun pageForProgression(progression: Double, totalPages: Int): Int =
+            (progression * totalPages).roundToInt().coerceIn(0, totalPages - 1)
 
         fun isInsidePageWindow(
             matchResourceHref: String,
@@ -156,36 +187,38 @@ internal class DictionaryHighlighter(
             return matchPage in firstPage..lastPage
         }
 
-        fun windowDecorations(
+        fun windowDecorationsByPage(
             matches: List<Match>,
             currentLocator: Locator,
             pageIndex: Int,
             totalPages: Int,
-        ): List<Decoration> {
-            return matches.asSequence()
-                .filter { match ->
-                    isInsidePageWindow(
-                        matchResourceHref = match.locator.href.toString(),
-                        matchProgression = match.progression,
-                        currentResourceHref = currentLocator.href.toString(),
-                        pageIndex = pageIndex,
-                        totalPages = totalPages,
-                    )
-                }
-                .map { match ->
-                    Decoration(
-                        id = match.id,
-                        locator = match.locator,
-                        style = Decoration.Style.Highlight(
-                            tint = colorWithAlpha(
-                                DICTIONARY_COLORS[match.colorIndex.coerceIn(DICTIONARY_COLORS.indices)],
-                                DICTIONARY_HIGHLIGHT_ALPHA
-                            )
-                        ),
-                        extras = mapOf("text" to match.text),
-                    )
-                }
-                .toList()
+        ): List<PageDecorationGroup> {
+            if (totalPages <= 0) return emptyList()
+            val matchesById = matches.associateBy { it.id }
+            val pageMatches = pageWindowMatchesByPage(
+                matches = matches.map { PageMatch(it.id, it.locator.href.toString(), it.progression) },
+                currentResourceHref = currentLocator.href.toString(),
+                pageIndex = pageIndex,
+                totalPages = totalPages,
+            )
+            return pageMatches.map { (visiblePage, pageItems) ->
+                PageDecorationGroup(
+                    pageIndex = visiblePage,
+                    decorations = pageItems.mapNotNull { matchesById[it.id] }.map(::decoration),
+                )
+            }
         }
+
+        private fun decoration(match: Match): Decoration = Decoration(
+            id = match.id,
+            locator = match.locator,
+            style = Decoration.Style.Highlight(
+                tint = colorWithAlpha(
+                    DICTIONARY_COLORS[match.colorIndex.coerceIn(DICTIONARY_COLORS.indices)],
+                    DICTIONARY_HIGHLIGHT_ALPHA
+                )
+            ),
+            extras = mapOf("text" to match.text),
+        )
     }
 }
